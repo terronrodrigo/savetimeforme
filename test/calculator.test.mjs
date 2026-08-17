@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateRecoverableTime, getOpportunityBand } from "../lib/calculator.ts";
+import { validateEstimateSubmission } from "../lib/estimate-submission.ts";
 import { createEstimateSummary } from "../lib/summary.ts";
 
 test("calcula a estimativa com uma casa decimal", () => {
@@ -67,4 +68,42 @@ test("monta um resumo copiável com a tarefa, horas e os sete dias", () => {
   assert.match(summary, /Horas recuperáveis\/mês: 2,2/);
   assert.match(summary, /Dia 1/);
   assert.match(summary, /Dia 7/);
+});
+
+test("valida e normaliza o contato antes de salvar a estimativa", () => {
+  const validation = validateEstimateSubmission({
+    name: "  Ana Souza  ",
+    email: "ANA@EXEMPLO.COM ",
+    task: "  Checklist semanal  ",
+    frequency: 1,
+    minutes: 60,
+    support: 50,
+    consent: true,
+  });
+
+  assert.equal(validation.success, true);
+  if (!validation.success) return;
+
+  assert.equal(validation.data.name, "Ana Souza");
+  assert.equal(validation.data.email, "ana@exemplo.com");
+  assert.equal(validation.data.task, "Checklist semanal");
+  assert.equal(validation.data.calculation.recoverableHours, 2.2);
+});
+
+test("rejeita contato, consentimento e limites inválidos", () => {
+  const validInput = {
+    name: "Ana",
+    email: "ana@exemplo.com",
+    task: "Checklist semanal",
+    frequency: 1,
+    minutes: 60,
+    support: 50,
+    consent: true,
+  };
+
+  assert.equal(validateEstimateSubmission({ ...validInput, name: "" }).success, false);
+  assert.equal(validateEstimateSubmission({ ...validInput, email: "invalido" }).success, false);
+  assert.equal(validateEstimateSubmission({ ...validInput, consent: false }).success, false);
+  assert.equal(validateEstimateSubmission({ ...validInput, frequency: 10001 }).success, false);
+  assert.equal(validateEstimateSubmission({ ...validInput, minutes: 1441 }).success, false);
 });

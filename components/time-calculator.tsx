@@ -108,6 +108,9 @@ async function copyToClipboard(text: string) {
 }
 
 export function TimeCalculator() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
   const [task, setTask] = useState("");
   const [frequency, setFrequency] = useState("1");
   const [minutes, setMinutes] = useState("60");
@@ -115,8 +118,11 @@ export function TimeCalculator() {
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [error, setError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [storageCleared, setStorageCleared] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
   const taskInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -143,14 +149,30 @@ export function TimeCalculator() {
     update();
     setEstimate(null);
     setCopyFeedback("");
+    setSaveFeedback("");
     setStorageCleared(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
     const normalizedTask = task.trim();
     const parsedFrequency = Number(frequency);
     const parsedMinutes = Number(minutes);
+
+    if (!normalizedName) {
+      setEstimate(null);
+      setError("Informe seu nome para registrar a estimativa.");
+      nameInput.current?.focus();
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setEstimate(null);
+      setError("Informe um e-mail válido para registrar a estimativa.");
+      return;
+    }
 
     if (!normalizedTask) {
       setEstimate(null);
@@ -171,16 +193,59 @@ export function TimeCalculator() {
       return;
     }
 
+    if (!consent) {
+      setEstimate(null);
+      setError("Confirme que autoriza o registro dos seus dados e desta estimativa.");
+      return;
+    }
+
     setError("");
     setCopyFeedback("");
-    setEstimate({
-      task: normalizedTask,
-      support,
-      ...calculateRecoverableTime({ frequency: parsedFrequency, minutes: parsedMinutes, support }),
-    });
+    setSaveFeedback("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/estimates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: normalizedName,
+          email: normalizedEmail,
+          task: normalizedTask,
+          frequency: parsedFrequency,
+          minutes: parsedMinutes,
+          support,
+          consent,
+        }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "Não foi possível registrar sua estimativa agora. Tente novamente em instantes.";
+        throw new Error(message);
+      }
+
+      setEstimate({
+        task: normalizedTask,
+        support,
+        ...calculateRecoverableTime({ frequency: parsedFrequency, minutes: parsedMinutes, support }),
+      });
+      setSaveFeedback("Estimativa registrada. Você pode copiar o resumo ou iniciar outra análise.");
+    } catch (submissionError) {
+      setEstimate(null);
+      setError(submissionError instanceof Error ? submissionError.message : "Não foi possível registrar sua estimativa agora.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function restart() {
+    setName("");
+    setEmail("");
+    setConsent(false);
     setTask("");
     setFrequency("1");
     setMinutes("60");
@@ -188,12 +253,16 @@ export function TimeCalculator() {
     setEstimate(null);
     setError("");
     setCopyFeedback("");
+    setSaveFeedback("");
     setStorageCleared(false);
-    requestAnimationFrame(() => taskInput.current?.focus());
+    requestAnimationFrame(() => nameInput.current?.focus());
   }
 
   function eraseAll() {
     window.localStorage.removeItem(STORAGE_KEY);
+    setName("");
+    setEmail("");
+    setConsent(false);
     setTask("");
     setFrequency("");
     setMinutes("");
@@ -201,8 +270,9 @@ export function TimeCalculator() {
     setEstimate(null);
     setError("");
     setCopyFeedback("Rascunho e estimativa apagados deste navegador.");
+    setSaveFeedback("");
     setStorageCleared(true);
-    requestAnimationFrame(() => taskInput.current?.focus());
+    requestAnimationFrame(() => nameInput.current?.focus());
   }
 
   async function handleCopy() {
@@ -229,6 +299,57 @@ export function TimeCalculator() {
           </div>
 
           <div className="grid gap-5">
+            <fieldset className="rounded-xl border border-white/15 bg-white/3 p-4">
+              <legend className="px-1 text-sm font-semibold">Para registrar sua estimativa</legend>
+              <p className="mt-1 text-xs leading-relaxed text-[#c2c8ce]">Usaremos estes dados para contato e acompanhamento. Não inclua informações confidenciais na tarefa.</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="block" htmlFor="name">
+                  <span className="text-sm font-semibold">Nome</span>
+                  <input
+                    ref={nameInput}
+                    id="name"
+                    name="name"
+                    autoComplete="name"
+                    maxLength={120}
+                    value={name}
+                    onChange={(event) => updateDraft(() => setName(event.target.value))}
+                    placeholder="Como podemos chamar você?"
+                    required
+                    className="mt-2 h-14 w-full rounded-xl border border-white/20 bg-white/5 px-4 text-base text-[#f9f9f9] placeholder:text-[#c2c8ce]/65 focus:border-[#c8ff00] focus:bg-white/8 focus:outline-none"
+                    aria-invalid={Boolean(error && !name.trim())}
+                  />
+                </label>
+                <label className="block" htmlFor="email">
+                  <span className="text-sm font-semibold">E-mail</span>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    maxLength={254}
+                    value={email}
+                    onChange={(event) => updateDraft(() => setEmail(event.target.value))}
+                    placeholder="voce@empresa.com"
+                    required
+                    className="mt-2 h-14 w-full rounded-xl border border-white/20 bg-white/5 px-4 text-base text-[#f9f9f9] placeholder:text-[#c2c8ce]/65 focus:border-[#c8ff00] focus:bg-white/8 focus:outline-none"
+                    aria-invalid={Boolean(error && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))}
+                  />
+                </label>
+              </div>
+              <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-[#c2c8ce]">
+                <input
+                  className="mt-0.5 size-4 shrink-0 accent-[#c8ff00]"
+                  type="checkbox"
+                  name="consent"
+                  checked={consent}
+                  onChange={(event) => updateDraft(() => setConsent(event.target.checked))}
+                  required
+                  aria-invalid={Boolean(error && !consent)}
+                />
+                <span>Autorizo o registro do meu nome, e-mail e desta estimativa para contato e acompanhamento.</span>
+              </label>
+            </fieldset>
+
             <label className="block" htmlFor="task">
               <span className="flex items-center gap-2 text-sm font-semibold"><span className="font-mono text-xs text-[#c8ff00]">1.</span>Tarefa repetitiva</span>
               <input
@@ -252,6 +373,7 @@ export function TimeCalculator() {
                   name="frequency"
                   type="number"
                   min="0.1"
+                  max="10000"
                   step="0.1"
                   inputMode="decimal"
                   value={frequency}
@@ -268,6 +390,7 @@ export function TimeCalculator() {
                   name="minutes"
                   type="number"
                   min="1"
+                  max="1440"
                   step="1"
                   inputMode="numeric"
                   value={minutes}
@@ -307,11 +430,11 @@ export function TimeCalculator() {
             <p className="mt-5 rounded-lg border-l-4 border-[#ff780a] bg-[#ff780a]/10 px-3 py-2 text-sm text-[#ffe0c2]" role="alert">{error}</p>
           ) : null}
 
-          <button className="mt-7 flex h-14 w-full items-center justify-between rounded-xl bg-[#c8ff00] px-5 text-base font-bold text-[#22222a] transition hover:bg-[#dcff55] active:scale-[.99]" type="submit">
-            Ver estimativa de tempo <span aria-hidden="true">→</span>
+          <button className="mt-7 flex h-14 w-full items-center justify-between rounded-xl bg-[#c8ff00] px-5 text-base font-bold text-[#22222a] transition hover:bg-[#dcff55] active:scale-[.99] disabled:cursor-wait disabled:opacity-70" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Registrando estimativa..." : "Salvar e ver estimativa de tempo"} <span aria-hidden="true">→</span>
           </button>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#c2c8ce]">
-            <span>Rascunho salvo apenas neste navegador.</span>
+            <span>Rascunho da rotina salvo neste navegador.</span>
             <button className="min-h-11 rounded-lg border border-white/20 px-3 font-semibold text-[#f9f9f9] transition hover:border-[#ff780a] hover:text-[#ffb47b]" type="button" onClick={eraseAll}>
               Apagar tudo
             </button>
@@ -320,7 +443,7 @@ export function TimeCalculator() {
         </form>
 
         <aside className="bg-[#f9f9f9] p-5 text-[#22222a] sm:p-8 lg:p-10" aria-live="polite">
-          {estimate ? <EstimateResult estimate={estimate} onRestart={restart} onCopy={handleCopy} copyFeedback={copyFeedback} /> : <EmptyResult />}
+          {estimate ? <EstimateResult estimate={estimate} onRestart={restart} onCopy={handleCopy} copyFeedback={copyFeedback} saveFeedback={saveFeedback} /> : <EmptyResult />}
         </aside>
       </div>
     </section>
@@ -333,7 +456,7 @@ function EmptyResult() {
       <span className="mx-auto grid size-16 place-items-center rounded-full border border-[#22222a]/30 font-mono text-2xl">↗</span>
       <p className="mt-6 font-mono text-[11px] tracking-[0.07em] text-[#4a465e]">ESTIMATIVA INICIAL</p>
       <h2 className="mt-3 text-3xl leading-[1.02] font-bold tracking-[-0.05em]">Transforme uma rotina em tempo para construir.</h2>
-      <p className="mt-4 text-sm leading-relaxed text-[#4a465e]">Preencha os quatro passos ao lado. Você verá uma estimativa de tempo e um piloto prático para testar com segurança.</p>
+      <p className="mt-4 text-sm leading-relaxed text-[#4a465e]">Informe seus dados e os quatro passos ao lado. Você verá uma estimativa de tempo e um piloto prático para testar com segurança.</p>
       <p className="mt-5 rounded-lg bg-[#e9e9e4] px-4 py-3 text-xs leading-relaxed text-[#4a465e]">A calculadora traz uma estimativa inicial — não uma promessa de economia garantida.</p>
     </div>
   );
@@ -344,11 +467,13 @@ function EstimateResult({
   onRestart,
   onCopy,
   copyFeedback,
+  saveFeedback,
 }: {
   estimate: Estimate;
   onRestart: () => void;
   onCopy: () => void;
   copyFeedback: string;
+  saveFeedback: string;
 }) {
   const band = bandContent[estimate.band];
 
@@ -359,6 +484,7 @@ function EstimateResult({
         <span>{estimate.support}% DE APOIO</span>
       </div>
       <h2 className="mt-5 text-3xl leading-[1.02] font-bold tracking-[-0.05em]">{estimate.task}</h2>
+      {saveFeedback ? <p className="mt-3 rounded-lg bg-[#e2f7b0] px-3 py-2 text-xs font-medium text-[#355000]" role="status">{saveFeedback}</p> : null}
 
       <div className="mt-6 rounded-2xl bg-[#22222a] p-5 text-[#f9f9f9] shadow-lg shadow-black/10">
         <p className="font-mono text-[10px] tracking-[0.07em] text-[#c2c8ce]">HORAS RECUPERÁVEIS POR MÊS</p>
