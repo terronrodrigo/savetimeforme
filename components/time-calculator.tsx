@@ -436,7 +436,7 @@ export function TimeCalculator() {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#c2c8ce]">
             <span>Rascunho da rotina salvo neste navegador.</span>
             <button className="min-h-11 rounded-lg border border-white/20 px-3 font-semibold text-[#f9f9f9] transition hover:border-[#ff780a] hover:text-[#ffb47b]" type="button" onClick={eraseAll}>
-              Apagar tudo
+              Apagar rascunho local
             </button>
           </div>
           {copyFeedback && !estimate ? <p className="mt-3 text-xs text-[#c8ff00]" role="status">{copyFeedback}</p> : null}

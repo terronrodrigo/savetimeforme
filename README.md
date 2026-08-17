@@ -50,7 +50,7 @@ O endpoint `GET /api/health` responde `{ "ok": true }` e pode ser usado como ver
 
 A aplicação não cria conta nem chama serviços de IA. Ao marcar a autorização e calcular, ela envia e grava no PostgreSQL do projeto o nome, e-mail, tarefa, valores usados, resultado e data de consentimento. Esses dados servem para contato e acompanhamento das estimativas.
 
-Não inclua dados confidenciais no campo de tarefa. O rascunho da rotina e o resultado também ficam no `localStorage` deste navegador para facilitar a retomada; nome e e-mail não ficam nesse armazenamento local. O botão **Apagar tudo** remove apenas o rascunho local. O botão **Copiar resumo** só coloca o texto na área de transferência do seu dispositivo, após a sua ação.
+Não inclua dados confidenciais no campo de tarefa. O rascunho da rotina e o resultado também ficam no `localStorage` deste navegador para facilitar a retomada; nome e e-mail não ficam nesse armazenamento local. O botão **Apagar rascunho local** remove apenas o rascunho deste navegador. O botão **Copiar resumo** só coloca o texto na área de transferência do seu dispositivo, após a sua ação.
 
 ## Deploy no Railway
 
