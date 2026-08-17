@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --night: #16161c;
+  --graphite: #22222a;
+  --slate: #4a465e;
+  --mist: #c2c8ce;
+  --ice: #f9f9f9;
+  --lime: #c8ff00;
+  --font-ui: "DM Sans", "Avenir Next", Avenir, "Helvetica Neue", Arial, sans-serif;
+  --font-data: "DM Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--night);
+}
+
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ice);
+  font-family: var(--font-ui);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  background: var(--lime);
+  color: var(--graphite);
+}
+
+:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
